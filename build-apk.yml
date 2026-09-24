@@ -1,0 +1,128 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - uses: step-security/setup-android@v2
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+          accept-android-sdk-licenses: 'yes'
+
+      - name: Generate Android files
+        run: |
+          set -e
+          mkdir -p android/app/src/main/java/com/chacha/app
+          mkdir -p android/app/src/main/assets
+
+          cat > android/settings.gradle <<'EOF'
+          pluginManagement {
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
+            plugins {
+              id 'com.android.application' version '8.5.0'
+              id 'org.jetbrains.kotlin.android' version '1.9.24'
+            }
+          }
+          dependencyResolutionManagement {
+            repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "ChachaMachine"
+          include ':app'
+          EOF
+
+          cat > android/build.gradle <<'EOF'
+          // root
+          EOF
+
+          cat > android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx1536m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+
+          cat > android/app/build.gradle <<'EOF'
+          plugins {
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
+          }
+          android {
+            namespace 'com.chacha.app'
+            compileSdk 34
+            defaultConfig {
+              applicationId "com.chacha.app"
+              minSdk 26
+              targetSdk 34
+              versionCode 1
+              versionName "1.0"
+            }
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_17
+              targetCompatibility JavaVersion.VERSION_17
+            }
+            kotlinOptions { jvmTarget = '17' }
+          }
+          EOF
+
+          cat > android/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <application android:label="Chacha">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+
+          cat > android/app/src/main/java/com/chacha/app/MainActivity.kt <<'EOF'
+          package com.chacha.app
+          import android.app.Activity
+          import android.os.Bundle
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          class MainActivity : Activity() {
+            override fun onCreate(b: Bundle?) {
+              super.onCreate(b)
+              val w = WebView(this)
+              w.settings.javaScriptEnabled = true
+              w.settings.domStorageEnabled = true
+              w.webViewClient = WebViewClient()
+              w.loadUrl("file:///android_asset/index.html")
+              setContentView(w)
+            }
+          }
+          EOF
+
+      - name: Copy web assets
+        run: |
+          set -e
+          cp index.html android/app/src/main/assets/
+          cp style.css android/app/src/main/assets/
+          cp app.js android/app/src/main/assets/
+          ls android/app/src/main/assets/
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+        working-directory: android
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chacha-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
