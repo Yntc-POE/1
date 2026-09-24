@@ -75,7 +75,7 @@ jobs:
           cat > android/app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET"/>
-            <application android:label="茶茶机" android:theme="@android:style/Theme.DeviceDefault.Light">
+            <application android:label="Chacha">
               <activity android:name=".MainActivity" android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
